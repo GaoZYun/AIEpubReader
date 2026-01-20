@@ -1,0 +1,33 @@
+# Build artifacts
+.build/
+*.o
+*.swiftmodule
+
+# macOS
+.DS_Store
+*.app
+
+# Xcode
+xcuserdata/
+*.xcworkspace
+DerivedData/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Debug logs
+*.log
+app_debug.log
+
+# Agent/tool directories
+.sisyphus/
+.claude/
+.gemini/
+.swiftpm/
+
+# Testing docs
+TESTING_GUIDE.md
+TIMELINE_DEBUG.md
