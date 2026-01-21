@@ -379,7 +379,7 @@ struct EPUBLoader {
             /* 沉浸式阅读布局 */
             /* 沉浸式阅读布局 */
             .epub-container {
-                max-width: 42rem; /* 约 672px，最佳阅读宽度 */
+                /* max-width: 42rem; */ /* 约 672px，最佳阅读宽度 - Removed by user request */
                 margin: 0 auto;
                 padding: 40px 20px 100px 20px;
                 background-color: var(--bg-color);
@@ -441,7 +441,7 @@ struct EPUBLoader {
             .ui-controls {
                 position: fixed;
                 top: 20px;
-                right: 20px;
+                left: 20px; /* Left side */
                 display: flex;
                 gap: 12px;
                 z-index: 1000;
@@ -474,13 +474,13 @@ struct EPUBLoader {
             .toc-sidebar {
                 position: fixed;
                 top: 0;
-                right: -320px; /* 隐藏 */
+                left: -320px; /* 隐藏在左侧 */
                 width: var(--sidebar-width);
                 height: 100vh;
                 background: rgba(255, 255, 255, 0.95);
                 backdrop-filter: blur(20px);
                 -webkit-backdrop-filter: blur(20px);
-                box-shadow: -10px 0 30px rgba(0,0,0,0.05);
+                box-shadow: 10px 0 30px rgba(0,0,0,0.05); /* Shadow on right */
                 transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
                 z-index: 1001;
                 display: flex;
@@ -488,7 +488,84 @@ struct EPUBLoader {
             }
 
             .toc-sidebar.open {
-                transform: translateX(-320px);
+                transform: translateX(320px); /* 向右滑出 */
+            }
+            
+            /* 滚动条隐藏 */
+            ::-webkit-scrollbar {
+                display: none;
+            }
+            
+            /* Tabs 样式 */
+            .sidebar-tabs {
+                display: flex;
+                padding: 0 20px;
+                border-bottom: 1px solid rgba(0,0,0,0.05);
+            }
+            
+            .tab-btn {
+                flex: 1;
+                padding: 12px 0;
+                background: none;
+                border: none;
+                border-bottom: 2px solid transparent;
+                font-size: 15px;
+                font-weight: 500;
+                color: #888;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            
+            .tab-btn.active {
+                color: #333;
+                border-bottom-color: var(--accent-color);
+            }
+            
+            .tab-content {
+                display: none;
+                flex: 1;
+                overflow-y: auto;
+                padding: 10px 0;
+            }
+            
+            .tab-content.active {
+                display: block;
+            }
+            
+            /* Timeline List Styles */
+            .timeline-list {
+                list-style: none;
+                padding: 0;
+                margin: 0;
+            }
+            
+            .timeline-item {
+                padding: 12px 24px;
+                border-bottom: 1px solid rgba(0,0,0,0.03);
+                cursor: pointer;
+                transition: background 0.2s;
+            }
+            
+            .timeline-item:hover {
+                background: rgba(0,0,0,0.02);
+            }
+            
+            .timeline-meta {
+                font-size: 11px;
+                color: #888;
+                text-transform: uppercase;
+                margin-bottom: 4px;
+                letter-spacing: 0.5px;
+            }
+            
+            .timeline-prompt {
+                font-size: 14px;
+                color: #444;
+                line-height: 1.4;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
             }
             
             .toc-header {
@@ -571,17 +648,20 @@ struct EPUBLoader {
         </style>
         </head>
         <body>
-            <div class="ui-controls">
-                <button class="icon-btn" onclick="toggleTOC()" title="目录">☰</button>
-                <button class="icon-btn" onclick="scrollToTop()" title="返回顶部">↑</button>
-            </div>
+            <!-- UI Controls moved to SwiftUI Overlay -->
 
             <aside class="toc-sidebar" id="tocSidebar">
                 <div class="toc-header">
-                    <h2>目录</h2>
+                    <h2>导航</h2>
                     <button class="toc-close" onclick="toggleTOC()">×</button>
                 </div>
-                <div class="toc-content">
+                
+                <div class="sidebar-tabs">
+                    <button class="tab-btn active" onclick="switchTab('toc')" id="btn-toc">目录</button>
+                    <button class="tab-btn" onclick="switchTab('timeline')" id="btn-timeline">时间线</button>
+                </div>
+                
+                <div id="tab-toc" class="tab-content active">
                     <ul class="toc-list">
         """
 
@@ -593,7 +673,26 @@ struct EPUBLoader {
         html += """
                     </ul>
                 </div>
+                
+                <div id="tab-timeline" class="tab-content">
+                    <ul class="timeline-list" id="timeline-list">
+                        <!-- Timeline items will be injected by JS -->
+                        <li style="padding: 20px; text-align: center; color: #999; font-size: 14px;">当前章节暂无对话记录</li>
+                    </ul>
+                </div>
             </aside>
+            
+            <script>
+                function switchTab(tabId) {
+                    // Update buttons
+                    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+                    document.getElementById('btn-' + tabId).classList.add('active');
+                    
+                    // Update content
+                    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                    document.getElementById('tab-' + tabId).classList.add('active');
+                }
+            </script>
 
             <main class="epub-container">
                 <div class="epub-header">

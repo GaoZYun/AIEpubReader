@@ -338,16 +338,17 @@ struct AISidePanel: View {
         guard !prompt.isEmpty else { return }
 
         let context = selectedText.isEmpty ? prompt : "\(prompt)\n\n选中的文本：\(selectedText)"
-        await sendMessageInternal(prompt: context, displayContent: prompt)
+        let relatedTextCapture = selectedText
+        await sendMessageInternal(prompt: context, displayContent: prompt, relatedText: relatedTextCapture)
     }
 
     /// 快捷聊天框发送消息
     private func sendMessage(_ prompt: String, selectedText: String) async {
         let context = "\(prompt)\n\n选中的文本：\(selectedText)"
-        await sendMessageInternal(prompt: context, displayContent: prompt)
+        await sendMessageInternal(prompt: context, displayContent: prompt, relatedText: selectedText)
     }
 
-    private func sendMessageInternal(prompt: String, displayContent: String) async {
+    private func sendMessageInternal(prompt: String, displayContent: String, relatedText: String) async {
         // Capture context state AT START to prevent race conditions during async streaming
         let capturedParagraphId = self.currentParagraphId
         let capturedActionType = self.currentActionType
@@ -400,8 +401,8 @@ struct AISidePanel: View {
             } else {
                 savedResponse = finalContent
             }
-            // Use CAPTURED state, not current state
-            saveChatToHistory(prompt: prompt, response: savedResponse, context: selectedText, paragraphId: capturedParagraphId, actionType: capturedActionType)
+            // Use captured relatedText
+            saveChatToHistory(prompt: prompt, response: savedResponse, context: relatedText, paragraphId: capturedParagraphId, actionType: capturedActionType)
 
         } catch {
             messages[lastIndex].content = "抱歉，发生了错误：\(error.localizedDescription)"

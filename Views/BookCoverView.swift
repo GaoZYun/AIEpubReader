@@ -6,11 +6,15 @@ struct BookCoverView: View {
     let author: String
     let fileType: String
     let coverImage: NSImage?
+    var themeColor: Color? = nil
     
     @State private var isHovering: Bool = false
     
     // 生成随机渐变色背景（基于标题哈希）
     private var gradientColors: [Color] {
+        if let themeColor = themeColor {
+            return [themeColor.opacity(0.8), themeColor.opacity(0.4)]
+        }
         let hash = abs(title.hashValue)
         let colors: [[Color]] = [
             [Color(hex: "EEF2FF"), Color(hex: "C7D2FE")], // Indigo

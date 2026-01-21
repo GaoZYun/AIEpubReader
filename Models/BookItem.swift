@@ -16,6 +16,7 @@ final class BookItem: Identifiable {
     var lastReadPage: Int?
     var lastReadLocation: String? // CFI for EPUB
     var filePath: String
+    var themeColor: String? // Hex color string
 
     var bookmarkURL: URL? {
         resolveBookmark()
@@ -39,7 +40,8 @@ final class BookItem: Identifiable {
         lastOpenedAt: Date? = nil,
         lastReadPage: Int? = nil,
         lastReadLocation: String? = nil,
-        filePath: String
+        filePath: String,
+        themeColor: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -53,6 +55,7 @@ final class BookItem: Identifiable {
         self.lastReadPage = lastReadPage
         self.lastReadLocation = lastReadLocation
         self.filePath = filePath
+        self.themeColor = themeColor
     }
 
     func resolveBookmark() -> URL? {

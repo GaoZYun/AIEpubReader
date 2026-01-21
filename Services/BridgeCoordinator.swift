@@ -213,118 +213,112 @@ final class BridgeCoordinator: NSObject, ObservableObject {
             return html;
         }
 
-        window.highlightChatHistory = function(chats) {
-            console.log('Rendering Timeline for ' + (chats ? chats.length : 0) + ' chats...');
-            if (!chats || chats.length === 0) return;
+        window.highlightChatHistory = function(chats, retryCount) {
+            retryCount = retryCount || 0;
+            
+            // 2. Get all paragraphs
+            const paragraphs = Array.from(document.querySelectorAll('p'));
+            
+            // Retry logic if no paragraphs found (e.g. content still rendering)
+            if (paragraphs.length === 0) {
+                 if (retryCount < 5) {
+                    console.log("DEBUG: No paragraphs found, retrying in 500ms... (Attempt " + (retryCount + 1) + ")");
+                    setTimeout(function() {
+                        window.highlightChatHistory(chats, retryCount + 1);
+                    }, 500);
+                    return;
+                } else {
+                    console.error("DEBUG: Failed to find any paragraphs after 5 retries.");
+                    return;
+                }
+            }
 
-            // 1. Clear existing timelines
+            console.log('Rendering Timeline for ' + (chats ? chats.length : 0) + ' chats among ' + paragraphs.length + ' paragraphs. (Retry: ' + retryCount + ')');
+            if (!chats || chats.length === 0) return;
+            
+            // 1. Clear existing timelines ONLY if this is the first successful run (not a partial retry)
+            // Or just clear always to be safe? Let's clear always to avoid duplicates.
             document.querySelectorAll('.ai-timeline-container').forEach(el => el.remove());
             document.querySelectorAll('.ai-timeline-active').forEach(el => el.classList.remove('ai-timeline-active'));
+            document.querySelectorAll('.has-timeline').forEach(el => el.classList.remove('has-timeline'));
+            document.querySelectorAll('.ai-timeline-marker').forEach(el => el.remove());
             
-            // Debug: Print all active paragraph IDs
-            const paragraphs = Array.from(document.querySelectorAll('p'));
-            const pIds = paragraphs.map(p => p.id).filter(id => id.startsWith('ai-p-'));
-            console.log("DEBUG: Active Paragraph IDs (" + pIds.length + "): " + pIds.slice(0, 5).join(", ") + (pIds.length > 5 ? "..." : ""));
+            // Clear Sidebar Timeline List
+            const timelineList = document.getElementById('timeline-list');
+            if (timelineList) {
+                timelineList.innerHTML = '';
+                 if (!chats || chats.length === 0) {
+                     timelineList.innerHTML = '<li style="padding: 20px; text-align: center; color: #999; font-size: 14px;">当前章节暂无对话记录</li>';
+                }
+            }
+            
+            // Helper for normalization
+            // Removes whitespace (\\s) and common invisible characters
+            const normalize = (str) => str.replace(/[\\s\\u200B-\\u200D\\uFEFF]+/g, '').toLowerCase();
+
+            let matchCount = 0;
 
             chats.forEach(chat => {
-                console.log("DEBUG: Processing chat for ID: " + chat.paragraphId);
-                // Allow proceeding if we have an ID, even if text is missing (legacy data support)
-                if ((!chat.text || chat.text.length < 2) && !chat.paragraphId) {
-                    console.log("DEBUG: Skipping invalid chat (no text and no ID)");
+                // Skip if no text to match
+                if (!chat.text || chat.text.length < 2) {
+                    console.log("DEBUG: Skipping chat - no text to match");
+                    return;
+                }
+
+                // === PURE TEXT MATCHING ===
+                // Clean up chat text (remove button labels that might have been appended)
+                let rawChatText = chat.text;
+                ["解释", "总结", "翻译", "分析", "explain", "summarize", "translate", "analyze"].forEach(token => {
+                     if (rawChatText.endsWith(token)) {
+                         rawChatText = rawChatText.substring(0, rawChatText.length - token.length).trim();
+                     }
+                });
+
+                const chatTextNorm = normalize(rawChatText);
+
+                if (chatTextNorm.length < 2) {
+                    console.log("DEBUG: Skipping - text too short after cleanup");
                     return;
                 }
 
                 let targetP = null;
 
-                // === PRIORITY 1: Use paragraphId for exact matching ===
-                if (chat.paragraphId) {
-                    targetP = document.getElementById(chat.paragraphId);
-                    if (targetP) {
-                        console.log("✓ ID Match: " + chat.paragraphId);
-                    } else {
-                        // === PRIORITY 1.5: Bridge Matching for Legacy IDs ===
-                        // Old format: ai-p-{fullMD5}-{globalIdx}  e.g. ai-p-79e323a007d0bf6d18abaf067bb5063d-64
-                        // New format: ai-p-{chapterHash8}-{idx}-{contentHash8}  e.g. ai-p-85cff1c8-0-c8e22982
-                        // Bridge: Extract first 8 chars of old MD5 and match against contentHash8 suffix
-                        const oldFormatMatch = chat.paragraphId.match(/^ai-p-([0-9a-f]{32})-\\d+$/);
-                        if (oldFormatMatch) {
-                            const oldContentHashPrefix = oldFormatMatch[1].substring(0, 8);
-                            console.log("DEBUG: Attempting bridge match with contentHash prefix: " + oldContentHashPrefix);
-                            
-                            // Search for paragraph ending with this contentHash
-                            for (const p of paragraphs) {
-                                if (p.id && p.id.endsWith('-' + oldContentHashPrefix)) {
-                                    targetP = p;
-                                    console.log("✓ Bridge Match: " + chat.paragraphId + " -> " + p.id);
-                                    break;
-                                }
-                            }
-                            
-                            if (!targetP) {
-                                console.log("DEBUG: Bridge match failed for " + chat.paragraphId + ". Chapter may have changed.");
-                                return; // Skip text fallback for structured IDs
-                            }
-                        } else {
-                            // New format ID not found - skip silently
-                            const newFormatMatch = chat.paragraphId.match(/^ai-p-[0-9a-f]{8}-\\d+-[0-9a-f]{8}$/);
-                            if (newFormatMatch) {
-                                console.log("DEBUG: New format ID " + chat.paragraphId + " not found. Skipping.");
-                                return;
-                            }
-                            // Unknown format - try text fallback
-                            console.log("⚠ Unknown ID format: " + chat.paragraphId + ", falling back to text match");
-                        }
+                for (const p of paragraphs) {
+                    // Extract clean text from P using clone to handle nested tags but exclude our UI
+                    const clone = p.cloneNode(true);
+                    // Remove our UI elements if they exist inside P
+                    clone.querySelectorAll('.ai-paragraph-actions, .ai-timeline-container, .ai-timeline-marker').forEach(el => el.remove());
+                    const pText = clone.textContent || "";
+
+                    const pTextNorm = normalize(pText);
+
+                    if (pTextNorm.length < 5) continue; // Skip too short paragraphs
+
+                    // Match: paragraph contains the chat text (chat was a selection from paragraph)
+                    if (pTextNorm.includes(chatTextNorm)) {
+                        targetP = p;
+                        console.log("✓ Text Match (p contains chat): " + pText.substring(0, 30) + "...");
+                        break;
+                    }
+
+                    if (pTextNorm.length > 10 && chatTextNorm.includes(pTextNorm)) {
+                        targetP = p;
+                        console.log("✓ Text Match (chat contains p): " + pText.substring(0, 30) + "...");
+                        break;
                     }
                 }
 
-                // === PRIORITY 2: Fallback to text matching (ONLY for legacy/missing IDs) ===
                 if (!targetP) {
-                    // DATA CLEANUP: Remove potential button text from legacy data
-                    let rawChatText = chat.text;
-                    ["解释", "总结", "翻译", "分析", "explain", "summarize", "translate", "analyze"].forEach(token => {
-                         if (rawChatText.endsWith(token)) {
-                             rawChatText = rawChatText.substring(0, rawChatText.length - token.length).trim();
-                         }
-                    });
-
-                    const chatTextNorm = rawChatText.replace(/\\s+/g, '').toLowerCase();
-
-                    if (chatTextNorm.length < 2) {
-                        console.log("DEBUG: Skipping text match - text too short");
-                    } else {
-                        for (const p of paragraphs) {
-                            // Extract clean text from P (ignore buttons)
-                            let pText = "";
-                            for (const node of p.childNodes) {
-                                if (node.nodeType === Node.TEXT_NODE) {
-                                    pText += node.textContent;
-                                } else if (node.nodeType === Node.ELEMENT_NODE && !node.classList.contains('ai-paragraph-actions')) {
-                                    pText += node.textContent;
-                                }
-                            }
-
-                            const pTextNorm = pText.replace(/\\s+/g, '').toLowerCase();
-
-                            if (pTextNorm.length < 5) continue; // Skip too short paragraphs
-
-                            // 1. Exact or P contains Chat (Chat is a selection)
-                            if (pTextNorm.includes(chatTextNorm)) {
-                                targetP = p;
-                                console.log("✓ Text Match: " + p.id);
-                                break;
-                            }
-
-                            // 2. Chat contains P (Chat is full paragraph + extra/dirty)
-                            if (pTextNorm.length > 10 && chatTextNorm.includes(pTextNorm)) {
-                                targetP = p;
-                                console.log("✓ Fuzzy Text Match: " + p.id);
-                                break;
-                            }
-                        }
+                    console.log("✗ No match for: " + chatTextNorm.substring(0, 50) + "...");
+                    // Debug: print first 3 paragraphs to see why
+                    if (matchCount === 0 && paragraphs.length > 0) {
+                        console.log("  Debug - First P norm: " + normalize(paragraphs[0].textContent).substring(0, 50));
                     }
-
-                    if (!targetP) {
-                        console.log("✗ Match failed for: " + chatTextNorm.substring(0, 30));
+                } else {
+                    matchCount++;
+                    // Ensure targetP has an ID for the container association
+                    if (!targetP.id) {
+                         targetP.id = 'ai-p-gen-' + Math.random().toString(36).substr(2, 9);
                     }
                 }
 
@@ -409,6 +403,38 @@ final class BridgeCoordinator: NSObject, ObservableObject {
                     
                     targetP.classList.add('ai-timeline-active');
                     timeline.style.display = 'block';
+                    
+                    // Add to Sidebar Timeline
+                    if (timelineList) {
+                        const li = document.createElement('li');
+                        li.className = 'timeline-item';
+                        let promptSummary = chat.prompt;
+                        if (!promptSummary || promptSummary.length < 2) promptSummary = chat.text; 
+                        if (promptSummary.length > 50) promptSummary = promptSummary.substring(0, 50) + '...';
+                        
+                        li.innerHTML = '<div class="timeline-meta">' + (chat.actionType || 'Chat') + '</div>' +
+                                       '<div class="timeline-prompt">' + promptSummary.replace(/</g, '&lt;') + '</div>';
+                        
+                        li.onclick = function() {
+                            targetP.scrollIntoView({behavior: 'smooth', block: 'center'});
+                            // Highlight effect
+                            const originalBg = targetP.style.backgroundColor;
+                            const originalTrans = targetP.style.transition;
+                            targetP.style.transition = "background-color 0.5s";
+                            targetP.style.backgroundColor = "rgba(255, 230, 0, 0.3)";
+                            setTimeout(function() {
+                                targetP.style.backgroundColor = originalBg;
+                                setTimeout(function() { targetP.style.transition = originalTrans; }, 500);
+                            }, 1500);
+                            
+                            // Ensure timeline is visible
+                            const container = targetP.nextElementSibling;
+                            if (container && container.classList.contains('ai-timeline-container')) {
+                                 container.style.display = 'block';
+                            }
+                        };
+                        timelineList.appendChild(li);
+                    }
                 }
             });
         };
@@ -929,18 +955,24 @@ final class BridgeCoordinator: NSObject, ObservableObject {
             var oldWarn = console.warn;
             var oldError = console.error;
             
-            console.log = function(message) {
-                window.webkit.messageHandlers.consoleLog.postMessage({ type: 'log', message: String(message) });
+            console.log = function() {
+                var args = Array.from(arguments);
+                var message = args.map(arg => String(arg)).join(' ');
+                window.webkit.messageHandlers.consoleLog.postMessage({ type: 'log', message: message });
                 oldLog.apply(console, arguments);
             };
             
-            console.warn = function(message) {
-                window.webkit.messageHandlers.consoleLog.postMessage({ type: 'warn', message: String(message) });
+            console.warn = function() {
+                var args = Array.from(arguments);
+                var message = args.map(arg => String(arg)).join(' ');
+                window.webkit.messageHandlers.consoleLog.postMessage({ type: 'warn', message: message });
                 oldWarn.apply(console, arguments);
             };
             
-            console.error = function(message) {
-                window.webkit.messageHandlers.consoleLog.postMessage({ type: 'error', message: String(message) });
+            console.error = function() {
+                var args = Array.from(arguments);
+                var message = args.map(arg => String(arg)).join(' ');
+                window.webkit.messageHandlers.consoleLog.postMessage({ type: 'error', message: message });
                 oldError.apply(console, arguments);
             };
         })();
@@ -1098,17 +1130,27 @@ final class BridgeCoordinator: NSObject, ObservableObject {
             // Check if cancelled
             if Task.isCancelled { return }
             
-            print("DEBUG: reinitializeParagraphsAndChats executing (debounced)")
+            DebugLogger.log("DEBUG: reinitializeParagraphsAndChats executing (debounced)")
             _ = try? await webView.evaluateJavaScript("if (typeof initParagraphs === 'function') initParagraphs();")
             
             // Re-apply cached chat history if available
             if !self.cachedChats.isEmpty {
-                print("DEBUG: Re-applying \(self.cachedChats.count) cached chats after navigation")
+                DebugLogger.log("DEBUG: Re-applying \(self.cachedChats.count) cached chats after navigation")
                 await self.highlightChatHistory(chats: self.cachedChats)
             }
         }
     }
     
+    // MARK: - UI Control
+    
+    public func toggleTOC() {
+        webView?.evaluateJavaScript("toggleTOC()", completionHandler: { _, error in
+            if let error = error {
+                print("JS Error toggleTOC: \(error)")
+            }
+        })
+    }
+
     // MARK: - Direct AI Action
     
     func handleDirectAIAction(_ body: [String: Any]) {
@@ -1204,7 +1246,7 @@ private class ScriptMessageHandler: NSObject, WKScriptMessageHandler {
         } else if message.name == "consoleLog", let body = message.body as? [String: Any] {
             let type = body["type"] as? String ?? "log"
             let msg = body["message"] as? String ?? ""
-            NSLog("JS [\(type.uppercased())]: \(msg)")
+            DebugLogger.log("JS [\(type.uppercased())]: \(msg)")
         } else if message.name == "directAIAction", let body = message.body as? [String: Any] {
             coordinator?.handleDirectAIAction(body)
         } else if message.name == "deleteChatMessage", let chatId = message.body as? String {

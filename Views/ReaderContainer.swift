@@ -85,32 +85,44 @@ struct ReaderContainer: View {
                                 .font(.title)
                         }
                     }
-                    .frame(minWidth: 400, idealWidth: 600)
+                    .frame(minWidth: 600, idealWidth: 900)
 
                     // 右侧：AI 面板
                     if isSidebarVisible {
                         AISidePanel(book: book, selectedText: $selectedText)
-                            .frame(minWidth: 300, idealWidth: 400)
+                            .frame(minWidth: 300, idealWidth: 300)
                             .transition(.move(edge: .trailing))
                     }
                 }
                 .overlay(alignment: .topLeading) {
-                    // 返回按钮 - 固定在左上角
-                    Button(action: { isPresented = false }) {
-                        HStack(spacing: 4) {
+                    VStack(spacing: 12) {
+                        // 返回按钮 (Icon only)
+                        Button(action: { isPresented = false }) {
                             Image(systemName: "chevron.left")
-                            Text("返回书库")
+                                .font(.system(size: 16, weight: .medium))
+                                .frame(width: 36, height: 36)
+                                .background(Color(nsColor: .controlBackgroundColor).opacity(0.9))
+                                .clipShape(Circle())
+                                .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
                         }
-                        .font(.caption)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .cornerRadius(6)
-                        .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+                        .buttonStyle(.plain)
+                        .help("返回书库 (⌘[)")
+
+                        // 目录按钮 (Icon only)
+                        Button(action: {
+                             NotificationCenter.default.post(name: NSNotification.Name("ToggleTOCNotification"), object: nil)
+                        }) {
+                            Image(systemName: "list.bullet")
+                                .font(.system(size: 16, weight: .medium))
+                                .frame(width: 36, height: 36)
+                                .background(Color(nsColor: .controlBackgroundColor).opacity(0.9))
+                                .clipShape(Circle())
+                                .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+                        }
+                        .buttonStyle(.plain)
+                        .help("显示目录")
                     }
-                    .buttonStyle(.plain)
-                    .help("返回书库 (⌘[)")
-                    .padding(16)
+                    .padding(20)
                 }
                 .overlay(alignment: .topTrailing) {
                     // 侧边栏切换按钮
@@ -341,6 +353,9 @@ struct EPUBReaderView: View {
                 await updateChatHistoryHighlights()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ToggleTOCNotification"))) { _ in
+            coordinator.toggleTOC()
+        }
     }
 
     private func loadEPUB() async {
@@ -497,9 +512,12 @@ struct EPUBReaderView: View {
             )
         }
 
-        print("DEBUG: Calling coordinator.highlightChatHistory with \(chatData.count) chats")
+        if let firstChat = chatData.first {
+             DebugLogger.log("DEBUG: First chat text sample: \(firstChat.text.prefix(50))...")
+        }
+        DebugLogger.log("DEBUG: Calling coordinator.highlightChatHistory with \(chatData.count) chats")
         await coordinator.highlightChatHistory(chats: chatData)
-        print("DEBUG: coordinator.highlightChatHistory completed")
+        DebugLogger.log("DEBUG: coordinator.highlightChatHistory completed")
     }
 }
 

@@ -8,9 +8,11 @@ struct LibraryView: View {
     let onDelete: (BookItem) -> Void
     let onImport: (URL) -> Void
     
-    @State private var searchText: String = ""
-    @State private var hoverBookId: UUID?
-    @State private var showImportSheet: Bool = false
+    @State private var searchText = ""
+    @State private var showImportSheet = false
+    @State private var showDebugLogs = false
+    @State private var editingBook: BookItem?
+    @State private var isImporting: Bool = false
     
     // 自适应网格布局
     private let columns = [
@@ -51,6 +53,12 @@ struct LibraryView: View {
             case .failure(let error):
                 print("Import failed: \(error.localizedDescription)")
             }
+        }
+        .sheet(isPresented: $showDebugLogs) {
+            DebugLogView()
+        }
+        .sheet(item: $editingBook) { book in
+            EditBookView(book: book)
         }
     }
     
@@ -95,6 +103,19 @@ struct LibraryView: View {
             .help("Import Book")
             .help("Import Book")
             
+            // 调试日志按钮
+            Button(action: { showDebugLogs = true }) {
+                Image(systemName: "ladybug")
+                    .font(.system(size: 16, weight: .medium))
+                    .frame(width: 32, height: 32)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .foregroundColor(.secondary)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+            .help("Show Debug Logs")
+            
             // 设置按钮
             Button(action: {
                 NotificationCenter.default.post(name: NSNotification.Name("OpenSettings"), object: nil)
@@ -123,7 +144,8 @@ struct LibraryView: View {
                         book: book,
                         onOpen: { onOpen(book) },
                         onDelete: { onDelete(book) },
-                        onExport: { exportBookChats(book) }
+                        onExport: { exportBookChats(book) },
+                        onEdit: { editingBook = book }
                     )
                 }
             }
@@ -219,21 +241,53 @@ struct BookItemView: View {
     let onOpen: () -> Void
     let onDelete: () -> Void
     let onExport: () -> Void
+    let onEdit: () -> Void
+    
+    var progress: Double {
+        guard let current = book.lastReadPage, let total = book.pageCount, total > 0 else { return 0 }
+        return Double(current) / Double(total)
+    }
     
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 8) {
             BookCoverView(
                 title: book.title,
                 author: book.author ?? "Unknown Author",
                 fileType: book.fileType,
-                coverImage: book.coverImageData.flatMap { NSImage(data: $0) }
+                coverImage: book.coverImageData.flatMap { NSImage(data: $0) },
+                themeColor: book.themeColor.map { Color(hex: $0) }
             )
+            
+            // 进度显示
+            if progress > 0 {
+                VStack(spacing: 2) {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Rectangle()
+                                .fill(Color.secondary.opacity(0.2))
+                                .frame(height: 4)
+                                .cornerRadius(2)
+                            
+                            Rectangle()
+                                .fill(Color.accentColor)
+                                .frame(width: geo.size.width * CGFloat(progress), height: 4)
+                                .cornerRadius(2)
+                        }
+                    }
+                    .frame(width: 120, height: 4)
+                    
+                    Text("\(Int(progress * 100))%")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+            }
         }
         .onTapGesture {
             onOpen()
         }
         .contextMenu {
             Button("Open") { onOpen() }
+            Button("Edit Metadata") { onEdit() }
             Divider()
             Button("Export Chat History") { onExport() }
             Divider()
