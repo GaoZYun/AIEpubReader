@@ -122,7 +122,8 @@ struct LibraryView: View {
                     BookItemView(
                         book: book,
                         onOpen: { onOpen(book) },
-                        onDelete: { onDelete(book) }
+                        onDelete: { onDelete(book) },
+                        onExport: { exportBookChats(book) }
                     )
                 }
             }
@@ -157,6 +158,59 @@ struct LibraryView: View {
             Spacer()
         }
     }
+    
+    // MARK: - CSV Export
+    
+    private func exportBookChats(_ book: BookItem) {
+        let chats = book.aiChats.sorted { $0.createdAt < $1.createdAt }
+        
+        guard !chats.isEmpty else {
+            return
+        }
+        
+        var csvContent = "日期,操作类型,段落ID,原文,提问,回答\n"
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        
+        for chat in chats {
+            let date = dateFormatter.string(from: chat.createdAt)
+            let actionType = chat.actionType ?? "chat"
+            let paragraphId = chat.annotationCfi ?? ""
+            let relatedText = escapeCSV(chat.relatedText)
+            let prompt = escapeCSV(chat.prompt)
+            let response = escapeCSV(chat.response)
+            
+            csvContent += "\(date),\(actionType),\(paragraphId),\(relatedText),\(prompt),\(response)\n"
+        }
+        
+        let savePanel = NSSavePanel()
+        savePanel.title = "导出聊天记录"
+        savePanel.nameFieldStringValue = "\(book.title)_聊天记录.csv"
+        savePanel.allowedContentTypes = [.commaSeparatedText]
+        savePanel.canCreateDirectories = true
+        
+        savePanel.begin { response in
+            if response == .OK, let url = savePanel.url {
+                do {
+                    let bom = "\u{FEFF}"
+                    try (bom + csvContent).write(to: url, atomically: true, encoding: .utf8)
+                } catch {
+                    print("ERROR: Failed to export CSV: \(error)")
+                }
+            }
+        }
+    }
+    
+    private func escapeCSV(_ text: String) -> String {
+        var escaped = text.replacingOccurrences(of: "\"", with: "\"\"")
+        escaped = escaped.replacingOccurrences(of: "\n", with: " ")
+        escaped = escaped.replacingOccurrences(of: "\r", with: " ")
+        if escaped.contains(",") || escaped.contains("\"") {
+            escaped = "\"\(escaped)\""
+        }
+        return escaped
+    }
 }
 
 /// 单个书籍项（包含右键菜单）
@@ -164,6 +218,7 @@ struct BookItemView: View {
     let book: BookItem
     let onOpen: () -> Void
     let onDelete: () -> Void
+    let onExport: () -> Void
     
     var body: some View {
         VStack(spacing: 0) {
@@ -179,6 +234,8 @@ struct BookItemView: View {
         }
         .contextMenu {
             Button("Open") { onOpen() }
+            Divider()
+            Button("Export Chat History") { onExport() }
             Divider()
             Button("Remove from Library", role: .destructive) { onDelete() }
         }

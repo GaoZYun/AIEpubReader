@@ -293,6 +293,7 @@ struct PDFReaderView: View {
 // MARK: - EPUB Reader View
 
 struct EPUBReaderView: View {
+    @Environment(\.modelContext) private var modelContext
     let book: BookItem
     @StateObject private var coordinator = BridgeCoordinator()
     @State private var contentURL: URL?
@@ -433,6 +434,29 @@ struct EPUBReaderView: View {
             Task { @MainActor in
                 book.lastReadLocation = href
                 book.lastOpenedAt = Date()
+            }
+        }
+        
+        // 设置删除聊天记录回调
+        let deleteContext: ModelContext = modelContext  // Explicit type to avoid ViewBuilder inference
+        coordinator.onDeleteChat = { [book] chatIdString in
+            Task { @MainActor in
+                guard let chatId = UUID(uuidString: chatIdString) else {
+                    print("ERROR: Invalid chat ID format: \(chatIdString)")
+                    return
+                }
+                
+                // Find and delete the chat
+                if let chatToDelete = book.aiChats.first(where: { $0.id == chatId }) {
+                    deleteContext.delete(chatToDelete)
+                    try? deleteContext.save()
+                    print("DEBUG: Deleted chat \(chatIdString)")
+                    
+                    // Refresh timeline by posting notification
+                    NotificationCenter.default.post(name: .init("AIChatCompletedNotification"), object: nil)
+                } else {
+                    print("ERROR: Chat not found: \(chatIdString)")
+                }
             }
         }
 

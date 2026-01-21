@@ -431,6 +431,66 @@ struct AISidePanel: View {
         
         // Remove dependency on global mutable state clearing
     }
+    
+    // MARK: - CSV Export
+    
+    private func exportToCSV() {
+        // Get all chats for current book
+        let chats = book.aiChats.sorted { $0.createdAt < $1.createdAt }
+        
+        guard !chats.isEmpty else {
+            // No chats to export
+            return
+        }
+        
+        // Build CSV content
+        var csvContent = "日期,操作类型,段落ID,原文,提问,回答\n"
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        
+        for chat in chats {
+            let date = dateFormatter.string(from: chat.createdAt)
+            let actionType = chat.actionType ?? "chat"
+            let paragraphId = chat.annotationCfi ?? ""
+            let relatedText = escapeCSV(chat.relatedText)
+            let prompt = escapeCSV(chat.prompt)
+            let response = escapeCSV(chat.response)
+            
+            csvContent += "\(date),\(actionType),\(paragraphId),\(relatedText),\(prompt),\(response)\n"
+        }
+        
+        // Show save panel
+        let savePanel = NSSavePanel()
+        savePanel.title = "导出聊天记录"
+        savePanel.nameFieldStringValue = "\(book.title)_聊天记录.csv"
+        savePanel.allowedContentTypes = [.commaSeparatedText]
+        savePanel.canCreateDirectories = true
+        
+        savePanel.begin { response in
+            if response == .OK, let url = savePanel.url {
+                do {
+                    // Write with UTF-8 BOM for Excel compatibility
+                    let bom = "\u{FEFF}"
+                    try (bom + csvContent).write(to: url, atomically: true, encoding: .utf8)
+                    print("DEBUG: Exported \(chats.count) chats to \(url.path)")
+                } catch {
+                    print("ERROR: Failed to export CSV: \(error)")
+                }
+            }
+        }
+    }
+    
+    private func escapeCSV(_ text: String) -> String {
+        // Escape quotes and wrap in quotes if contains special characters
+        var escaped = text.replacingOccurrences(of: "\"", with: "\"\"")
+        escaped = escaped.replacingOccurrences(of: "\n", with: " ")
+        escaped = escaped.replacingOccurrences(of: "\r", with: " ")
+        if escaped.contains(",") || escaped.contains("\"") || escaped.contains("\n") {
+            escaped = "\"\(escaped)\""
+        }
+        return escaped
+    }
 }
 
 // MARK: - Message Bubble

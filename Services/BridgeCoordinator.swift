@@ -43,6 +43,7 @@ final class BridgeCoordinator: NSObject, ObservableObject {
     var onSelectionChanged: ((TextSelection) -> Void)?
     var onScrollPositionChanged: ((String) -> Void)?
     var onShowQuickChat: ((String, CGPoint) -> Void)?
+    var onDeleteChat: ((String) -> Void)?  // Callback for deleting a chat by ID
     
     // Cache for chat history to re-apply on navigation
     private var cachedChats: [ChatContextData] = []
@@ -362,6 +363,19 @@ final class BridgeCoordinator: NSObject, ObservableObject {
                     // Create chat item
                     const item = document.createElement('div');
                     item.className = 'ai-chat-item';
+                    item.dataset.chatId = chat.id; // Store chat ID for deletion
+                    
+                    // Delete button (hidden by default, shown on hover)
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'ai-chat-delete-btn';
+                    deleteBtn.innerHTML = '×';
+                    deleteBtn.title = '删除此记录';
+                    deleteBtn.onclick = function(e) {
+                        e.stopPropagation();
+                        if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.deleteChatMessage) {
+                            window.webkit.messageHandlers.deleteChatMessage.postMessage(chat.id);
+                        }
+                    };
                     
                     // Action Label
                     const meta = document.createElement('div');
@@ -388,6 +402,7 @@ final class BridgeCoordinator: NSObject, ObservableObject {
                         bubble.innerHTML = parseMarkdown(responseText);
                     }
                     
+                    item.appendChild(deleteBtn);
                     item.appendChild(meta);
                     item.appendChild(bubble);
                     timeline.appendChild(item);
@@ -487,6 +502,37 @@ final class BridgeCoordinator: NSObject, ObservableObject {
                 border-radius: 50%;
                 border: 2px solid white;
                 box-shadow: 0 0 0 1px #eee;
+            }
+            
+            /* Delete Button - hidden by default, shown on hover */
+            .ai-chat-delete-btn {
+                position: absolute;
+                top: 4px;
+                right: 4px;
+                width: 20px;
+                height: 20px;
+                border: none;
+                background: rgba(220, 53, 69, 0.8);
+                color: white;
+                border-radius: 50%;
+                font-size: 14px;
+                font-weight: bold;
+                cursor: pointer;
+                opacity: 0;
+                transition: opacity 0.2s ease, transform 0.2s ease;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10;
+            }
+            
+            .ai-chat-item:hover .ai-chat-delete-btn {
+                opacity: 1;
+            }
+            
+            .ai-chat-delete-btn:hover {
+                background: rgba(220, 53, 69, 1);
+                transform: scale(1.1);
             }
 
             .ai-chat-action {
@@ -871,6 +917,7 @@ final class BridgeCoordinator: NSObject, ObservableObject {
         webView.configuration.userContentController.add(handler, name: "scrollHandler")
         webView.configuration.userContentController.add(handler, name: "consoleLog")
         webView.configuration.userContentController.add(handler, name: "directAIAction")
+        webView.configuration.userContentController.add(handler, name: "deleteChatMessage")
     }
 
     // MARK: - JS Console Bridge
@@ -1160,6 +1207,8 @@ private class ScriptMessageHandler: NSObject, WKScriptMessageHandler {
             NSLog("JS [\(type.uppercased())]: \(msg)")
         } else if message.name == "directAIAction", let body = message.body as? [String: Any] {
             coordinator?.handleDirectAIAction(body)
+        } else if message.name == "deleteChatMessage", let chatId = message.body as? String {
+            coordinator?.onDeleteChat?(chatId)
         }
     }
 }
