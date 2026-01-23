@@ -46,9 +46,19 @@ struct AIReaderApp: App {
             AIChat.self
         ])
 
+        // 使用固定的文档目录存储数据，防止开发期间沙盒路径变化导致数据丢失
+        let fileManager = FileManager.default
+        let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let appDataURL = documentsURL.appendingPathComponent("AIReader/Database")
+        
+        // 确保目录存在
+        try? fileManager.createDirectory(at: appDataURL, withIntermediateDirectories: true)
+        
+        let storeURL = appDataURL.appendingPathComponent("AIReader.store")
+        print("DEBUG: Using database path: \(storeURL.path)")
+
         let modelConfiguration = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: false
+            url: storeURL
         )
 
         do {

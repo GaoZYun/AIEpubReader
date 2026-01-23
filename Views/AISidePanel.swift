@@ -66,7 +66,7 @@ struct AISidePanel: View {
             // 输入区域
             inputArea
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(.ultraThinMaterial)
         .onAppear {
             let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "AIReader", category: "AIConfig")
             logger.info("[Config] AISidePanel: onAppear")
@@ -143,7 +143,7 @@ struct AISidePanel: View {
             .help("聊天历史")
         }
         .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(.regularMaterial)
     }
 
     // MARK: - Message List
@@ -164,11 +164,19 @@ struct AISidePanel: View {
                 .padding()
             }
             .onChange(of: messages.count) { _, _ in
-                if let lastMessage = messages.last {
-                    withAnimation {
-                        proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                    }
-                }
+                scrollToBottom(proxy: proxy)
+            }
+            .onChange(of: messages.last?.content) { _, _ in
+                // 流式消息内容更新时也滚动到底部
+                scrollToBottom(proxy: proxy)
+            }
+        }
+    }
+    
+    private func scrollToBottom(proxy: ScrollViewProxy) {
+        if let lastMessage = messages.last {
+            withAnimation(.easeOut(duration: 0.2)) {
+                proxy.scrollTo(lastMessage.id, anchor: .bottom)
             }
         }
     }
@@ -231,7 +239,7 @@ struct AISidePanel: View {
             }
             .padding()
         }
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(.regularMaterial)
     }
 
     // MARK: - Actions
@@ -531,12 +539,12 @@ struct MessageBubble: View {
                     .font(.body)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(Color(nsColor: .textBackgroundColor))
+                    .background(.thinMaterial)
                     .foregroundColor(.primary)
-                    .cornerRadius(6)
+                    .cornerRadius(12)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                     )
                     // 流式传输中的光标效果
                     .overlay(alignment: .bottomTrailing) {
@@ -560,9 +568,15 @@ struct MessageBubble: View {
                     .textSelection(.enabled)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(Color(hex: "0xD9F7D3"))
+                    .background(
+                        LinearGradient(
+                            colors: [Color(hex: "0xD9F7D3"), Color(hex: "0xC8EFC2")],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
                     .foregroundColor(.primary)
-                    .cornerRadius(6)
+                    .cornerRadius(12)
             }
 
             Text(timestampText)
@@ -646,8 +660,8 @@ struct SuggestionButton: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(8)
+            .background(.thinMaterial)
+            .cornerRadius(10)
         }
         .buttonStyle(.plain)
     }

@@ -90,7 +90,7 @@ struct ReaderContainer: View {
                     // 右侧：AI 面板
                     if isSidebarVisible {
                         AISidePanel(book: book, selectedText: $selectedText)
-                            .frame(minWidth: 300, idealWidth: 300)
+                            .frame(minWidth: 280, idealWidth: 320, maxWidth: 360)
                             .transition(.move(edge: .trailing))
                     }
                 }
@@ -101,9 +101,9 @@ struct ReaderContainer: View {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 16, weight: .medium))
                                 .frame(width: 36, height: 36)
-                                .background(Color(nsColor: .controlBackgroundColor).opacity(0.9))
+                                .background(.ultraThinMaterial)
                                 .clipShape(Circle())
-                                .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+                                .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
                         }
                         .buttonStyle(.plain)
                         .help("返回书库 (⌘[)")
@@ -115,9 +115,9 @@ struct ReaderContainer: View {
                             Image(systemName: "list.bullet")
                                 .font(.system(size: 16, weight: .medium))
                                 .frame(width: 36, height: 36)
-                                .background(Color(nsColor: .controlBackgroundColor).opacity(0.9))
+                                .background(.ultraThinMaterial)
                                 .clipShape(Circle())
-                                .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+                                .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
                         }
                         .buttonStyle(.plain)
                         .help("显示目录")
@@ -134,9 +134,9 @@ struct ReaderContainer: View {
                         Image(systemName: "sidebar.right")
                             .font(.system(size: 14))
                             .padding(8)
-                            .background(Color(nsColor: .controlBackgroundColor))
+                            .background(.ultraThinMaterial)
                             .cornerRadius(6)
-                            .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+                            .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
                     }
                     .buttonStyle(.plain)
                     .help(isSidebarVisible ? "隐藏侧边栏" : "显示侧边栏")

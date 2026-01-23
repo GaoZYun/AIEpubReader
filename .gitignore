@@ -23,10 +23,17 @@ DerivedData/
 app_debug.log
 
 # Agent/tool directories
+.agent/
 .sisyphus/
 .claude/
 .gemini/
 .swiftpm/
+.codex/
+.cursor/
+.kiro/
+.opencode/
+.trae/
+.windsurf/
 
 # Testing docs
 TESTING_GUIDE.md
